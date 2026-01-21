@@ -1,0 +1,47 @@
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build folders
+Debug*/
+Release*/
+x64/      # if you have a folder like x64/Debug or x64/Release
+x86/
+build/
+bin/
+obj/
+
+# Visual Studio temporary files
+*.obj
+*.o
+*.idb
+*.pdb
+*.ipdb
+*.iobj
+*.log
+
+# Compiled source
+*.exe
+*.dll
+*.lib
+*.so
+*.a
+*.out
+
+# SDL or other external libraries (optional)
+# /path/to/external/libs/*
+
+# Others
+*.tmp
+*.cache
+*.ilk
+*.tlog
+*.lastbuildstate
+
+# OS-specific
+Thumbs.db
+.DS_Store
