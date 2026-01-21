@@ -17,7 +17,8 @@
 #define WATER_ID 1
 #define WALL_ID -1
 
-#define WATER_MAX_ID 32
+#define WATER_MAX_ID 16
+#define WATER_SMOOTH 5
 
 #define COLOR_RED_MIN 0
 #define COLOR_GREEN_MIN 29
@@ -51,6 +52,11 @@ typedef struct
 	int z;
 } Vec3;
 
+int out_of_bounds(int x, int y)
+{
+	return (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT);
+}
+
 int clamp(int val, int min, int max)
 {
 	if (val < min)
@@ -69,27 +75,62 @@ void swap(int *a, int *b)
 
 Vec3 calculate_color(int grid[GRID_HEIGHT][GRID_WIDTH], int x, int y)
 {
+	if (grid[y][x] < WATER_ID)
+		return (Vec3) { 0, 0, 0 };
+
 	int sum = 0;
+
 	for (int i = y - 1; i >= 0; i--)
 	{
 		int id = grid[i][x];
-		if (id == EMPTY_ID)
+		if (id == EMPTY_ID || id == WALL_ID)
 			break;
 		if (id >= WATER_ID)
 			sum++;
 	}
 
-	sum = clamp(sum, WATER_ID, WATER_MAX_ID);
+	int average = 0;
+	int count = 0;
 
-	float t = (float)sum / (float)WATER_MAX_ID;
+	for (int dy = -WATER_SMOOTH; dy <= WATER_SMOOTH; dy++)
+	{
+		int ny = y + dy;
+		if (ny < 0 || ny >= GRID_HEIGHT) continue;
+
+		for (int dx = -WATER_SMOOTH; dx <= WATER_SMOOTH; dx++)
+		{
+			int nx = x + dx;
+			if (nx < 0 || nx >= GRID_WIDTH) continue;
+			if (dx == 0 && dy == 0) continue;
+
+			int id = grid[ny][nx];
+			if (id >= WATER_ID)
+			{
+				average += id;
+				count++;
+			}
+		}
+	}
+
+	float neighbor = (count > 0) ? ((float)average / count) : 0.0f;
+
+	float vertical = (float)sum / WATER_MAX_ID;
+	float lateral = neighbor / WATER_MAX_ID;
+
+	float t = (vertical + lateral) * 0.5f;
+
+	clamp(t, 0, 1);
+
+	int new_val = (int)(t * WATER_MAX_ID + 0.5f);
+	clamp(new_val, WATER_ID, WATER_MAX_ID);
+
+	grid[y][x] = new_val;
 
 	int r = clamp((int)(COLOR_RED_MAX * (1.0f - t)), COLOR_RED_MIN, COLOR_RED_MAX);
 	int g = clamp((int)(COLOR_GREEN_MAX * (1.0f - t)), COLOR_GREEN_MIN, COLOR_GREEN_MAX);
 	int b = clamp((int)(COLOR_BLUE_MAX * (1.0f - t)), COLOR_BLUE_MIN, COLOR_BLUE_MAX);
 
-	Vec3 color = { r, g, b };
-
-	return color;
+	return (Vec3) { r, g, b };
 }
 
 Vec2 process_water(int grid[GRID_HEIGHT][GRID_WIDTH], int x, int y)
@@ -97,7 +138,7 @@ Vec2 process_water(int grid[GRID_HEIGHT][GRID_WIDTH], int x, int y)
 	Vec2 newpos = { -1, -1 };
 	int nx = x + flow_dirs[0][0];
 	int ny = y + flow_dirs[0][1];
-	if (nx >= 0 && nx < GRID_WIDTH && ny >= 0 && ny < GRID_HEIGHT && grid[ny][nx] == EMPTY_ID)
+	if (!out_of_bounds(nx, ny) && grid[ny][nx] == EMPTY_ID)
 	{
 		grid[ny][nx] = grid[y][x];
 		grid[y][x] = EMPTY_ID;
@@ -106,8 +147,24 @@ Vec2 process_water(int grid[GRID_HEIGHT][GRID_WIDTH], int x, int y)
 		return newpos;
 	}
 
+	int left_depth = 0;
+	int right_depth = 0;
+
+	if (x > 0)
+		for (int i = y + 1; i < GRID_HEIGHT && grid[i][x - 1] == EMPTY_ID; i++)
+			left_depth++;
+
+	if (x < GRID_WIDTH - 1)
+		for (int i = y + 1; i < GRID_HEIGHT && grid[i][x + 1] == EMPTY_ID; i++)
+			right_depth++;
+
 	int lateral[2] = { 1, 2 };
-	if (rand() % 2)
+
+	if (left_depth < right_depth)
+	{
+		swap(&lateral[0], &lateral[1]);
+	}
+	else if (left_depth == right_depth && rand() % 2)
 	{
 		int tmp = lateral[0];
 		lateral[0] = lateral[1];
@@ -166,11 +223,9 @@ void draw_grid(int grid[GRID_HEIGHT][GRID_WIDTH], SDL_Renderer* renderer)
 				rect.y = y * TILE_SIZE + 1;
 
 				Vec3 color = calculate_color(grid, x, y);
-				
-				SDL_SetRenderDrawColor(renderer, color.x, color.y, color.z, 255);
-				
-				SDL_RenderFillRect(renderer, &rect);
 
+				SDL_SetRenderDrawColor(renderer, color.x, color.y, color.z, 255);
+				SDL_RenderFillRect(renderer, &rect);
 			}
 
 		}
